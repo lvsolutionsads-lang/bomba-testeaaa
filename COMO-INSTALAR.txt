@@ -1,0 +1,9 @@
+1. Extraia todo o conteúdo deste ZIP dentro da pasta public_html do seu cPanel.
+2. Confirme que o arquivo kwai-token-proxy.php ficou na raiz do domínio.
+3. Confirme que o index.html e a pasta assets também ficaram na raiz.
+4. A callback cadastrada no Kwai deve continuar exatamente assim: https://acessoaoseupremio.shop/callback
+5. Gere um code NOVO e tente novamente.
+
+Importante:
+- Esse erro de CORS acontece quando o navegador tenta chamar direto https://business.kwai.com/oauth/token.
+- Neste pacote corrigido, o navegador chama /kwai-token-proxy.php no seu domínio, e o PHP faz a troca do token no servidor.
