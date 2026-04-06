@@ -1,16 +1,14 @@
 <?php
 /**
- * Proxy para trocar o authorization code por token no Kwai.
- * Coloque este arquivo na RAIZ do seu domínio (ex: public_html/kwai-token-proxy.php).
- *
- * O frontend fará POST para /kwai-token-proxy.php com JSON:
- * { "code": "...", "client_id": "...", "client_secret": "...", "redirect_uri": "..." }
+ * Proxy PHP para a API do Kwai Marketing
+ * Recebe requisições do frontend e repassa para developers.kwai.com
+ * Resolve o problema de CORS do navegador
  */
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Accept');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -25,36 +23,41 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $input = json_decode(file_get_contents('php://input'), true);
 
-if (!$input || empty($input['code']) || empty($input['client_id']) || empty($input['client_secret']) || empty($input['redirect_uri'])) {
+if (!$input || empty($input['endpoint']) || empty($input['access_token'])) {
     http_response_code(400);
-    echo json_encode(['error' => 'Missing required fields: code, client_id, client_secret, redirect_uri']);
+    echo json_encode(['error' => 'Missing required fields: endpoint, access_token']);
     exit;
 }
 
-$postData = http_build_query([
-    'grant_type'    => 'authorization_code',
-    'code'          => trim($input['code']),
-    'client_id'     => trim($input['client_id']),
-    'client_secret' => trim($input['client_secret']),
-    'redirect_uri'  => trim($input['redirect_uri']),
-]);
+$endpoint = $input['endpoint'];
+$accessToken = trim($input['access_token']);
+$body = isset($input['body']) ? $input['body'] : new stdClass();
 
-$ch = curl_init('https://business.kwai.com/oauth/token');
+// Validar que o endpoint começa com /rest/n/mapi/
+if (strpos($endpoint, '/rest/n/mapi/') !== 0) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid endpoint. Must start with /rest/n/mapi/']);
+    exit;
+}
+
+$url = 'https://developers.kwai.com' . $endpoint;
+
+$ch = curl_init($url);
 curl_setopt_array($ch, [
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => $postData,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => json_encode($body),
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER     => [
-        'Content-Type: application/x-www-form-urlencoded',
-        'Accept: application/json',
+    CURLOPT_HTTPHEADER => [
+        'Content-Type: application/json',
+        'Access-Token: ' . $accessToken,
     ],
-    CURLOPT_TIMEOUT        => 30,
+    CURLOPT_TIMEOUT => 30,
     CURLOPT_SSL_VERIFYPEER => true,
 ]);
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error    = curl_error($ch);
+$error = curl_error($ch);
 curl_close($ch);
 
 if ($error) {
